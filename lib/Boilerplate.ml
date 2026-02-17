@@ -1243,6 +1243,9 @@ and map_class_body (env : env) ((v1, v2, v3) : CST.class_body) =
   let v2 =
     R.List (List.map (fun x ->
       (match x with
+      | `Semg_ellips tok -> R.Case ("Semg_ellips",
+          (* "..." *) token env tok
+        )
       | `Deco x -> R.Case ("Deco",
           map_decorator env x
         )
@@ -1761,6 +1764,12 @@ and map_expression (env : env) (x : CST.expression) =
           )
         )
       in
+      R.Tuple [v1; v2; v3]
+    )
+  | `Satiss_exp (v1, v2, v3) -> R.Case ("Satiss_exp",
+      let v1 = map_expression env v1 in
+      let v2 = (* "satisfies" *) token env v2 in
+      let v3 = map_type_ env v3 in
       R.Tuple [v1; v2; v3]
     )
   | `Inte_module x -> R.Case ("Inte_module",

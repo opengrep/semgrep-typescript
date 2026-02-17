@@ -48,6 +48,7 @@ module.exports = function defineGrammar(dialect) {
       [$.type_query, $._type_query_subscript_expression],
       [$.nested_type_identifier, $.generic_type, $._primary_type, $.lookup_type, $.index_type_query, $._type],
       [$.as_expression, $._primary_type],
+      [$.satisfies_expression, $._primary_type],
       [$._type_query_member_expression, $.member_expression],
       [$._type_query_member_expression, $.primary_expression],
       [$._type_query_subscript_expression, $.subscript_expression],
@@ -208,6 +209,7 @@ module.exports = function defineGrammar(dialect) {
       expression: ($, previous) => {
         const choices = [
           $.as_expression,
+          $.satisfies_expression,
           $.internal_module,
         ];
 
@@ -407,6 +409,12 @@ module.exports = function defineGrammar(dialect) {
         $.expression,
         'as',
         choice($._type, $.template_literal_type)
+      )),
+
+      satisfies_expression: $ => prec.left('binary_as', seq(
+        $.expression,
+        'satisfies',
+        $._type
       )),
 
       class_heritage: $ => choice(

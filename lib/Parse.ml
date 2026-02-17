@@ -20,7 +20,6 @@ type mt = Run.matcher_token
 external create_parser :
   unit -> Tree_sitter_API.ts_parser = "octs_create_parser_typescript"
 
-(* NOTE: Ok because we run one target per domain at any 1 time. *)
 let ts_parser = Domain.DLS.new_key create_parser
 
 let parse_source_string ?src_file contents =
@@ -935,6 +934,7 @@ let children_regexps : (string * Run.exp option) list = [
       Token (Literal "{");
       Repeat (
         Alt [|
+          Token (Name "semgrep_ellipsis");
           Token (Name "decorator");
           Seq [
             Token (Name "method_definition");
@@ -1328,6 +1328,7 @@ let children_regexps : (string * Run.exp option) list = [
   Some (
     Alt [|
       Token (Name "as_expression");
+      Token (Name "satisfies_expression");
       Token (Name "internal_module");
       Token (Name "type_assertion");
       Token (Name "primary_expression");
@@ -2749,6 +2750,14 @@ let children_regexps : (string * Run.exp option) list = [
         Token (Name "automatic_semicolon");
         Token (Literal ";");
       |];
+    ];
+  );
+  "satisfies_expression",
+  Some (
+    Seq [
+      Token (Name "expression");
+      Token (Literal "satisfies");
+      Token (Name "type");
     ];
   );
   "sequence_expression",
@@ -5630,10 +5639,14 @@ and trans_class_body ((kind, body) : mt) : CST.class_body =
               (fun v ->
                 (match v with
                 | Alt (0, v) ->
+                    `Semg_ellips (
+                      trans_semgrep_ellipsis (Run.matcher_token v)
+                    )
+                | Alt (1, v) ->
                     `Deco (
                       trans_decorator (Run.matcher_token v)
                     )
-                | Alt (1, v) ->
+                | Alt (2, v) ->
                     `Meth_defi_opt_choice_auto_semi (
                       (match v with
                       | Seq [v0; v1] ->
@@ -5658,7 +5671,7 @@ and trans_class_body ((kind, body) : mt) : CST.class_body =
                       | _ -> assert false
                       )
                     )
-                | Alt (2, v) ->
+                | Alt (3, v) ->
                     `Meth_sign_choice_func_sign_auto_semi (
                       (match v with
                       | Seq [v0; v1] ->
@@ -5679,7 +5692,7 @@ and trans_class_body ((kind, body) : mt) : CST.class_body =
                       | _ -> assert false
                       )
                     )
-                | Alt (3, v) ->
+                | Alt (4, v) ->
                     `Choice_abst_meth_sign_choice_choice_auto_semi (
                       (match v with
                       | Seq [v0; v1] ->
@@ -6600,50 +6613,54 @@ and trans_expression ((kind, body) : mt) : CST.expression =
             trans_as_expression (Run.matcher_token v)
           )
       | Alt (1, v) ->
+          `Satiss_exp (
+            trans_satisfies_expression (Run.matcher_token v)
+          )
+      | Alt (2, v) ->
           `Inte_module (
             trans_internal_module (Run.matcher_token v)
           )
-      | Alt (2, v) ->
+      | Alt (3, v) ->
           `Type_asse (
             trans_type_assertion (Run.matcher_token v)
           )
-      | Alt (3, v) ->
+      | Alt (4, v) ->
           `Prim_exp (
             trans_primary_expression (Run.matcher_token v)
           )
-      | Alt (4, v) ->
+      | Alt (5, v) ->
           `Assign_exp (
             trans_assignment_expression (Run.matcher_token v)
           )
-      | Alt (5, v) ->
+      | Alt (6, v) ->
           `Augm_assign_exp (
             trans_augmented_assignment_expression (Run.matcher_token v)
           )
-      | Alt (6, v) ->
+      | Alt (7, v) ->
           `Await_exp (
             trans_await_expression (Run.matcher_token v)
           )
-      | Alt (7, v) ->
+      | Alt (8, v) ->
           `Un_exp (
             trans_unary_expression (Run.matcher_token v)
           )
-      | Alt (8, v) ->
+      | Alt (9, v) ->
           `Bin_exp (
             trans_binary_expression (Run.matcher_token v)
           )
-      | Alt (9, v) ->
+      | Alt (10, v) ->
           `Tern_exp (
             trans_ternary_expression (Run.matcher_token v)
           )
-      | Alt (10, v) ->
+      | Alt (11, v) ->
           `Update_exp (
             trans_update_expression (Run.matcher_token v)
           )
-      | Alt (11, v) ->
+      | Alt (12, v) ->
           `New_exp (
             trans_new_expression (Run.matcher_token v)
           )
-      | Alt (12, v) ->
+      | Alt (13, v) ->
           `Yield_exp (
             trans_yield_expression (Run.matcher_token v)
           )
@@ -10403,6 +10420,20 @@ and trans_return_statement ((kind, body) : mt) : CST.return_statement =
                 )
             | _ -> assert false
             )
+          )
+      | _ -> assert false
+      )
+  | Leaf _ -> assert false
+
+and trans_satisfies_expression ((kind, body) : mt) : CST.satisfies_expression =
+  match body with
+  | Children v ->
+      (match v with
+      | Seq [v0; v1; v2] ->
+          (
+            trans_expression (Run.matcher_token v0),
+            Run.trans_token (Run.matcher_token v1),
+            trans_type_ (Run.matcher_token v2)
           )
       | _ -> assert false
       )
