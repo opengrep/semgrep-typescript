@@ -1,6 +1,6 @@
 File: semgrep-grammars/src/tree-sitter-javascript/LICENSE
 Git repo name: tree-sitter-javascript
-Latest commit in repo: 785831303ce3d36f5dd8ada7c4c7d63518d4d2f5
+Latest commit in repo: 3a837b6f3658ca3618f2022f8707e29739c91364
 Last change in file:
   commit 236a8dc0e5116ca1aca483b1a90df07f4bf3177e
   Author: Max Brunsfeld <maxbrunsfeld@gmail.com>
@@ -10,42 +10,40 @@ Last change in file:
 ---
 File: semgrep-grammars/src/tree-sitter-javascript/grammar.js
 Git repo name: tree-sitter-javascript
-Latest commit in repo: 785831303ce3d36f5dd8ada7c4c7d63518d4d2f5
+Latest commit in repo: 3a837b6f3658ca3618f2022f8707e29739c91364
 Last change in file:
-  commit 08f70a92f50a2373563d0e1f2a60089a02d19ca4
-  Author: fn ⌃ ⌥ <70830482+FnControlOption@users.noreply.github.com>
-  Date:   Mon Sep 20 12:40:57 2021 -0700
+  commit a2ef0796e8b9db9107c9ad210b3121b8ad918d5e
+  Author: Amaan Qureshi <amaanq12@gmail.com>
+  Date:   Sat Oct 26 18:22:54 2024 -0400
   
-      Fix rest pattern with assignment expression (#197)
+      feat!: remove glimmer template tags
       
-      * Fix rest pattern with assignment expression
-      
-      * Regenerate files
+      There is now a glimmer parser that's been out for a while now, glimmer
+      parsers should be using this.
 ---
 File: semgrep-grammars/src/tree-sitter-typescript/LICENSE
 Git repo name: tree-sitter-typescript
-Latest commit in repo: 391803ed80081b483d7ef3a6a412b0fb4d335329
+Latest commit in repo: f975a621f4e7f532fe322e13c4f79495e0a7b2e7
 Last change in file:
-  commit 4380c6679db3af5c2c641b83fa41329479b1d5dd
-  Author: Max Brunsfeld <maxbrunsfeld@gmail.com>
-  Date:   Thu Feb 9 23:06:14 2017 -0800
+  commit f836f66b9c9bfc5c5d068476c9fdd0d2fa4af65a
+  Author: Amaan Qureshi <amaanq12@gmail.com>
+  Date:   Mon May 6 00:41:00 2024 -0400
   
-      Fix license
+      build: update bindings and manifests
 ---
 File: semgrep-grammars/src/tree-sitter-typescript/common/define-grammar.js
 Git repo name: tree-sitter-typescript
-Latest commit in repo: 391803ed80081b483d7ef3a6a412b0fb4d335329
+Latest commit in repo: f975a621f4e7f532fe322e13c4f79495e0a7b2e7
 Last change in file:
-  commit 46e9c43848d13e10c8b92bebdfa29fa46a6895b5
-  Merge: 3e83446 22167c2
-  Author: pad <pad@r2c.dev>
-  Date:   Fri Jun 24 13:13:28 2022 +0200
+  commit 71fe6418462fe69a33860ceb3299a613441dae4b
+  Author: Amaan Qureshi <amaanq12@gmail.com>
+  Date:   Mon Sep 2 16:46:26 2024 -0400
   
-      Merge branch 'master' into object_is
+      feat: bump tree-sitter-javascript to 0.23
 ---
 File: semgrep-grammars/src/tree-sitter-typescript/typescript/grammar.js
 Git repo name: tree-sitter-typescript
-Latest commit in repo: 391803ed80081b483d7ef3a6a412b0fb4d335329
+Latest commit in repo: f975a621f4e7f532fe322e13c4f79495e0a7b2e7
 Last change in file:
   commit 4312b355b21710839110f934e240c7761383c86b
   Author: Nathan Sobo <nathan@github.com>
@@ -53,9 +51,59 @@ Last change in file:
   
       Include common scanner.h in both custom scanners to avoid extra symbols
 ---
+File: semgrep-grammars/src/semgrep-typescript/common/semgrep-ext.js
+Git repo name: ocaml-tree-sitter-semgrep
+Latest commit in repo: 8e856b97e47032aba104c7337c354db8b33d103d
+Last change in file:
+  commit 1310d282949c5e38eb00cebfcc65a90d9e806ce8
+  Author: Heejong Lee <heejong@gmail.com>
+  Date:   Thu Mar 13 11:44:30 2025 -0700
+  
+      Typescript: allow ellipsis in class body (#528)
+      
+      * Typescript: allow ellipsis in class body
+      
+      * add comment
+---
 File: semgrep-grammars/src/semgrep-typescript/typescript/grammar.js
 Git repo name: ocaml-tree-sitter-semgrep
-Latest commit in repo: 0d74980bb16749748167c21e090bbc7782471c9a
+Latest commit in repo: 8e856b97e47032aba104c7337c354db8b33d103d
+Last change in file:
+  commit f5c74b25c04be3b4901fe961e5c7a0489415aaaa
+  Author: Nat Mote <nat@r2c.dev>
+  Date:   Tue Aug 23 17:57:41 2022 -0700
+  
+      feat(ts): Add ellipsis and top level switch case parsing
+      
+      We recently received a feature request for allowing standalone switch
+      cases as patterns, e.g. `case 5: ...`. This seems useful. There is
+      currently no precedent for it in Semgrep, but there are a variety of
+      other partial programs that are allowed as patterns, so the
+      infrastructure for this exists.
+      
+      However, we currently use the JS pfff parser to parse all patterns for
+      TS and JS, rather than this tree sitter parser which we use for parsing
+      targets (for JS, we still fall back on the pfff parser, but for TS we
+      use this exclusively).
+      
+      Because we generally seem to be moving away from pfff parsers, I was
+      reluctant to add new features to the pfff parser. Instead, I would like
+      to begin to fall back on the tree sitter parser when parsing patterns,
+      just like we do when parsing targets.
+      
+      This PR adds parsing support for the semgrep ellipsis (`...`) and top
+      level switch case parsing to the TypeScript and TSX parsers. The
+      ellipsis is a table stakes feature, so I didn't want to omit it even
+      initially. The switch case provides the motivation for adding the
+      fallback logic (in an upcoming PR to Semgrep).
+      
+      Test plan: Automated tests plus a manual test with my upcoming changes
+      to Semgrep, where it can successfully match using a standalone switch
+      case pattern.
+---
+File: semgrep-grammars/src/semgrep-typescript/tsx/grammar.js
+Git repo name: ocaml-tree-sitter-semgrep
+Latest commit in repo: 8e856b97e47032aba104c7337c354db8b33d103d
 Last change in file:
   commit f5c74b25c04be3b4901fe961e5c7a0489415aaaa
   Author: Nat Mote <nat@r2c.dev>
@@ -91,7 +139,7 @@ Last change in file:
 ---
 File: semgrep-grammars/src/tree-sitter-typescript/tsx/grammar.js
 Git repo name: tree-sitter-typescript
-Latest commit in repo: 391803ed80081b483d7ef3a6a412b0fb4d335329
+Latest commit in repo: f975a621f4e7f532fe322e13c4f79495e0a7b2e7
 Last change in file:
   commit 4312b355b21710839110f934e240c7761383c86b
   Author: Nathan Sobo <nathan@github.com>
