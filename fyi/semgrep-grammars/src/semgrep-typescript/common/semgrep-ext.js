@@ -694,12 +694,20 @@ module.exports = {
       field('body', $.object_type),
     ),
 
-    // `Map<>`: empty type arguments, inferred by Flow
+    // `Map<>`: empty type arguments, inferred by Flow. `import("m").T<U>`
+    // and `import("m")<U>`: an import type takes type arguments.
     generic_type: ($, previous) => choice(
       previous,
       prec('call', seq(
         field('name', choice($._type_identifier, $.nested_type_identifier)),
         field('type_arguments', $.flow_empty_type_arguments),
+      )),
+      prec('call', seq(
+        field('name', choice(
+          alias($._type_query_member_expression_in_type_annotation, $.member_expression),
+          alias($._type_query_call_expression_in_type_annotation, $.call_expression),
+        )),
+        field('type_arguments', $.type_arguments),
       )),
     ),
 

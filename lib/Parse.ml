@@ -2217,6 +2217,13 @@ let children_regexps : (string * Run.exp option) list = [
         |];
         Token (Name "flow_empty_type_arguments");
       ];
+      Seq [
+        Alt [|
+          Token (Name "type_query_member_expression_in_type_annotation");
+          Token (Name "type_query_call_expression_in_type_annotation");
+        |];
+        Token (Name "type_arguments");
+      ];
     |];
   );
   "if_statement",
@@ -9462,6 +9469,28 @@ and trans_generic_type ((kind, body) : mt) : CST.generic_type =
                   )
                   ,
                   trans_flow_empty_type_arguments (Run.matcher_token v1)
+                )
+            | _ -> assert false
+            )
+          )
+      | Alt (2, v) ->
+          `Choice_type_query_member_exp_in_type_anno_type_args (
+            (match v with
+            | Seq [v0; v1] ->
+                (
+                  (match v0 with
+                  | Alt (0, v) ->
+                      `Type_query_member_exp_in_type_anno (
+                        trans_type_query_member_expression_in_type_annotation (Run.matcher_token v)
+                      )
+                  | Alt (1, v) ->
+                      `Type_query_call_exp_in_type_anno (
+                        trans_type_query_call_expression_in_type_annotation (Run.matcher_token v)
+                      )
+                  | _ -> assert false
+                  )
+                  ,
+                  trans_type_arguments (Run.matcher_token v1)
                 )
             | _ -> assert false
             )
