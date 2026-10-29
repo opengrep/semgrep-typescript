@@ -244,6 +244,51 @@ module.exports = {
       ),
     ),
 
+    // `import { type as }` and `import { type as as x }` import the export
+    // `as` as a type, and `import { type as as }` imports the export `type`
+    // under the name `as`. After `type` the lexer returns `as` as the keyword,
+    // so the keyword stands for the name.
+    import_specifier: ($, previous) => choice(
+      previous,
+      seq(
+        choice('type', 'typeof'),
+        field('name', alias('as', $.identifier)),
+        optional(seq(
+          'as',
+          field('alias', choice($._import_identifier, alias('as', $.identifier))),
+        )),
+      ),
+      seq(
+        field('name', alias('type', $.identifier)),
+        'as',
+        field('alias', alias('as', $.identifier)),
+      ),
+    ),
+
+    // `export { type }`, `export { type as x }` and `export { type as as }`
+    // export the binding `type`, which the lexer returns as the keyword; with
+    // that reading open, `as` after `type` is the keyword too, so `export
+    // { type as }` and `export { type as as x }` need the keyword as the name,
+    // as in import_specifier.
+    export_specifier: ($, previous) => choice(
+      previous,
+      seq(
+        field('name', alias('type', $.identifier)),
+        optional(seq(
+          'as',
+          field('alias', choice($._module_export_name, alias('as', $.identifier))),
+        )),
+      ),
+      seq(
+        choice('type', 'typeof'),
+        field('name', alias('as', $.identifier)),
+        optional(seq(
+          'as',
+          field('alias', choice($._module_export_name, alias('as', $.identifier))),
+        )),
+      ),
+    ),
+
     // `using`, Flow's `opaque`, `component` and `hook`, and the class member
     // modifiers `accessor` and `abstract` remain identifiers elsewhere, as in
     // `accessor: number` and `abstract;`.

@@ -320,43 +320,96 @@ let children_regexps : (string * Run.exp option) list = [
   );
   "export_specifier",
   Some (
-    Seq [
-      Opt (
+    Alt [|
+      Seq [
+        Opt (
+          Alt [|
+            Token (Literal "type");
+            Token (Literal "typeof");
+          |];
+        );
+        Token (Name "module_export_name");
+        Opt (
+          Seq [
+            Token (Literal "as");
+            Token (Name "module_export_name");
+          ];
+        );
+      ];
+      Seq [
+        Token (Literal "type");
+        Opt (
+          Seq [
+            Token (Literal "as");
+            Alt [|
+              Token (Name "module_export_name");
+              Token (Literal "as");
+            |];
+          ];
+        );
+      ];
+      Seq [
         Alt [|
           Token (Literal "type");
           Token (Literal "typeof");
         |];
-      );
-      Token (Name "module_export_name");
-      Opt (
-        Seq [
-          Token (Literal "as");
-          Token (Name "module_export_name");
-        ];
-      );
-    ];
+        Token (Literal "as");
+        Opt (
+          Seq [
+            Token (Literal "as");
+            Alt [|
+              Token (Name "module_export_name");
+              Token (Literal "as");
+            |];
+          ];
+        );
+      ];
+    |];
   );
   "import_specifier",
   Some (
-    Seq [
-      Opt (
+    Alt [|
+      Seq [
+        Opt (
+          Alt [|
+            Token (Literal "type");
+            Token (Literal "typeof");
+          |];
+        );
+        Alt [|
+          Token (Name "import_identifier");
+          Seq [
+            Alt [|
+              Token (Name "module_export_name");
+              Token (Literal "type");
+            |];
+            Token (Literal "as");
+            Token (Name "import_identifier");
+          ];
+        |];
+      ];
+      Seq [
         Alt [|
           Token (Literal "type");
           Token (Literal "typeof");
         |];
-      );
-      Alt [|
-        Token (Name "import_identifier");
-        Seq [
-          Alt [|
-            Token (Name "module_export_name");
-            Token (Literal "type");
-          |];
-          Token (Literal "as");
-          Token (Name "import_identifier");
-        ];
-      |];
-    ];
+        Token (Literal "as");
+        Opt (
+          Seq [
+            Token (Literal "as");
+            Alt [|
+              Token (Name "import_identifier");
+              Token (Literal "as");
+            |];
+          ];
+        );
+      ];
+      Seq [
+        Token (Literal "type");
+        Token (Literal "as");
+        Token (Literal "as");
+      ];
+    |];
   );
   "export_clause",
   Some (
@@ -4774,37 +4827,119 @@ let trans_export_specifier ((kind, body) : mt) : CST.export_specifier =
   match body with
   | Children v ->
       (match v with
-      | Seq [v0; v1; v2] ->
-          (
-            Run.opt
-              (fun v ->
-                (match v with
-                | Alt (0, v) ->
-                    `Type (
-                      Run.trans_token (Run.matcher_token v)
+      | Alt (0, v) ->
+          `Opt_choice_type_module_export_name_opt_as_module_export_name (
+            (match v with
+            | Seq [v0; v1; v2] ->
+                (
+                  Run.opt
+                    (fun v ->
+                      (match v with
+                      | Alt (0, v) ->
+                          `Type (
+                            Run.trans_token (Run.matcher_token v)
+                          )
+                      | Alt (1, v) ->
+                          `Typeof (
+                            Run.trans_token (Run.matcher_token v)
+                          )
+                      | _ -> assert false
+                      )
                     )
-                | Alt (1, v) ->
-                    `Typeof (
-                      Run.trans_token (Run.matcher_token v)
+                    v0
+                  ,
+                  trans_module_export_name (Run.matcher_token v1),
+                  Run.opt
+                    (fun v ->
+                      (match v with
+                      | Seq [v0; v1] ->
+                          (
+                            Run.trans_token (Run.matcher_token v0),
+                            trans_module_export_name (Run.matcher_token v1)
+                          )
+                      | _ -> assert false
+                      )
                     )
-                | _ -> assert false
+                    v2
                 )
-              )
-              v0
-            ,
-            trans_module_export_name (Run.matcher_token v1),
-            Run.opt
-              (fun v ->
-                (match v with
-                | Seq [v0; v1] ->
-                    (
-                      Run.trans_token (Run.matcher_token v0),
-                      trans_module_export_name (Run.matcher_token v1)
+            | _ -> assert false
+            )
+          )
+      | Alt (1, v) ->
+          `Type_opt_as_choice_module_export_name (
+            (match v with
+            | Seq [v0; v1] ->
+                (
+                  Run.trans_token (Run.matcher_token v0),
+                  Run.opt
+                    (fun v ->
+                      (match v with
+                      | Seq [v0; v1] ->
+                          (
+                            Run.trans_token (Run.matcher_token v0),
+                            (match v1 with
+                            | Alt (0, v) ->
+                                `Module_export_name (
+                                  trans_module_export_name (Run.matcher_token v)
+                                )
+                            | Alt (1, v) ->
+                                `As (
+                                  Run.trans_token (Run.matcher_token v)
+                                )
+                            | _ -> assert false
+                            )
+                          )
+                      | _ -> assert false
+                      )
                     )
-                | _ -> assert false
+                    v1
                 )
-              )
-              v2
+            | _ -> assert false
+            )
+          )
+      | Alt (2, v) ->
+          `Choice_type_as_opt_as_choice_module_export_name (
+            (match v with
+            | Seq [v0; v1; v2] ->
+                (
+                  (match v0 with
+                  | Alt (0, v) ->
+                      `Type (
+                        Run.trans_token (Run.matcher_token v)
+                      )
+                  | Alt (1, v) ->
+                      `Typeof (
+                        Run.trans_token (Run.matcher_token v)
+                      )
+                  | _ -> assert false
+                  )
+                  ,
+                  Run.trans_token (Run.matcher_token v1),
+                  Run.opt
+                    (fun v ->
+                      (match v with
+                      | Seq [v0; v1] ->
+                          (
+                            Run.trans_token (Run.matcher_token v0),
+                            (match v1 with
+                            | Alt (0, v) ->
+                                `Module_export_name (
+                                  trans_module_export_name (Run.matcher_token v)
+                                )
+                            | Alt (1, v) ->
+                                `As (
+                                  Run.trans_token (Run.matcher_token v)
+                                )
+                            | _ -> assert false
+                            )
+                          )
+                      | _ -> assert false
+                      )
+                    )
+                    v2
+                )
+            | _ -> assert false
+            )
           )
       | _ -> assert false
       )
@@ -4814,51 +4949,113 @@ let trans_import_specifier ((kind, body) : mt) : CST.import_specifier =
   match body with
   | Children v ->
       (match v with
-      | Seq [v0; v1] ->
-          (
-            Run.opt
-              (fun v ->
-                (match v with
-                | Alt (0, v) ->
-                    `Type (
-                      Run.trans_token (Run.matcher_token v)
+      | Alt (0, v) ->
+          `Opt_choice_type_choice_import_id (
+            (match v with
+            | Seq [v0; v1] ->
+                (
+                  Run.opt
+                    (fun v ->
+                      (match v with
+                      | Alt (0, v) ->
+                          `Type (
+                            Run.trans_token (Run.matcher_token v)
+                          )
+                      | Alt (1, v) ->
+                          `Typeof (
+                            Run.trans_token (Run.matcher_token v)
+                          )
+                      | _ -> assert false
+                      )
                     )
-                | Alt (1, v) ->
-                    `Typeof (
-                      Run.trans_token (Run.matcher_token v)
-                    )
-                | _ -> assert false
-                )
-              )
-              v0
-            ,
-            (match v1 with
-            | Alt (0, v) ->
-                `Import_id (
-                  trans_import_identifier (Run.matcher_token v)
-                )
-            | Alt (1, v) ->
-                `Choice_module_export_name_as_import_id (
-                  (match v with
-                  | Seq [v0; v1; v2] ->
-                      (
-                        (match v0 with
-                        | Alt (0, v) ->
-                            `Module_export_name (
-                              trans_module_export_name (Run.matcher_token v)
-                            )
-                        | Alt (1, v) ->
-                            `Type (
-                              Run.trans_token (Run.matcher_token v)
+                    v0
+                  ,
+                  (match v1 with
+                  | Alt (0, v) ->
+                      `Import_id (
+                        trans_import_identifier (Run.matcher_token v)
+                      )
+                  | Alt (1, v) ->
+                      `Choice_module_export_name_as_import_id (
+                        (match v with
+                        | Seq [v0; v1; v2] ->
+                            (
+                              (match v0 with
+                              | Alt (0, v) ->
+                                  `Module_export_name (
+                                    trans_module_export_name (Run.matcher_token v)
+                                  )
+                              | Alt (1, v) ->
+                                  `Type (
+                                    Run.trans_token (Run.matcher_token v)
+                                  )
+                              | _ -> assert false
+                              )
+                              ,
+                              Run.trans_token (Run.matcher_token v1),
+                              trans_import_identifier (Run.matcher_token v2)
                             )
                         | _ -> assert false
                         )
-                        ,
-                        Run.trans_token (Run.matcher_token v1),
-                        trans_import_identifier (Run.matcher_token v2)
                       )
                   | _ -> assert false
                   )
+                )
+            | _ -> assert false
+            )
+          )
+      | Alt (1, v) ->
+          `Choice_type_as_opt_as_choice_import_id (
+            (match v with
+            | Seq [v0; v1; v2] ->
+                (
+                  (match v0 with
+                  | Alt (0, v) ->
+                      `Type (
+                        Run.trans_token (Run.matcher_token v)
+                      )
+                  | Alt (1, v) ->
+                      `Typeof (
+                        Run.trans_token (Run.matcher_token v)
+                      )
+                  | _ -> assert false
+                  )
+                  ,
+                  Run.trans_token (Run.matcher_token v1),
+                  Run.opt
+                    (fun v ->
+                      (match v with
+                      | Seq [v0; v1] ->
+                          (
+                            Run.trans_token (Run.matcher_token v0),
+                            (match v1 with
+                            | Alt (0, v) ->
+                                `Import_id (
+                                  trans_import_identifier (Run.matcher_token v)
+                                )
+                            | Alt (1, v) ->
+                                `As (
+                                  Run.trans_token (Run.matcher_token v)
+                                )
+                            | _ -> assert false
+                            )
+                          )
+                      | _ -> assert false
+                      )
+                    )
+                    v2
+                )
+            | _ -> assert false
+            )
+          )
+      | Alt (2, v) ->
+          `Type_as_as (
+            (match v with
+            | Seq [v0; v1; v2] ->
+                (
+                  Run.trans_token (Run.matcher_token v0),
+                  Run.trans_token (Run.matcher_token v1),
+                  Run.trans_token (Run.matcher_token v2)
                 )
             | _ -> assert false
             )
