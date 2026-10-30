@@ -13,6 +13,7 @@ enum TokenType {
     JSX_TEXT,
     FUNCTION_SIGNATURE_AUTOMATIC_SEMICOLON,
     ERROR_RECOVERY,
+    LET_BINDING,
 };
 
 static void advance(TSLexer *lexer) { lexer->advance(lexer, false); }
@@ -161,6 +162,13 @@ static bool scan_automatic_semicolon(TSLexer *lexer, const bool *valid_symbols, 
     skip(lexer);
 
     if (!scan_whitespace_and_comments(lexer, scanned_comment)) {
+        return false;
+    }
+
+    // `let` at the end of a line continues with a binding: no semicolon before
+    // a name or an object pattern; `[` is handled below.
+    if (valid_symbols[LET_BINDING] &&
+        (lexer->lookahead == '{' || (is_identifier_part(lexer->lookahead) && !iswdigit(lexer->lookahead)))) {
         return false;
     }
 

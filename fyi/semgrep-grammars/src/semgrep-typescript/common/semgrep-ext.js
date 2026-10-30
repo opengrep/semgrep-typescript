@@ -12,6 +12,10 @@ const flatChoice = (rule) =>
   rule.type === 'CHOICE' ? rule.members.flatMap(flatChoice) : [rule];
 
 module.exports = {
+  // `_let_binding` is never scanned. It is valid only after the `let` of a
+  // declaration, which tells the scanner not to end the statement there.
+  externals: ($, previous) => previous.concat([$._let_binding]),
+
   // `import(...)` after `typeof` reads both as a call and as a type query.
   // Upstream makes the call win, so `f<typeof import("m")>()` fails as an
   // instantiation; the conflict below keeps both readings.
@@ -299,11 +303,11 @@ module.exports = {
 
     // `using`, Flow's `opaque`, `component` and `hook`, the class member
     // modifiers `accessor` and `abstract`, and `unique` remain identifiers
-    // elsewhere, as in `accessor: number` and `abstract;`. Upstream's `let` and
-    // `new` are left out: the scanner inserts a semicolon after an identifier
-    // at the end of a line, which breaks `let\n  x = 1` and `new\n  Foo()`.
+    // elsewhere, as in `accessor: number` and `abstract;`. Upstream's `new` is
+    // left out: it is a reserved word, and the scanner inserts a semicolon after
+    // an identifier at the end of a line, which breaks `new\n  Foo()`.
     _reserved_identifier: (_, previous) => choice(
-      ...flatChoice(previous).filter((rule) => !['let', 'new'].includes(rule.value)),
+      ...flatChoice(previous).filter((rule) => rule.value !== 'new'),
       'accessor',
       'abstract',
       'using',
@@ -316,6 +320,12 @@ module.exports = {
     // A comparison reads `a < b > -1`; TypeScript takes type arguments there
     // only when no expression can follow.
     instantiation_expression: ($, previous) => prec.dynamic(-1, previous),
+
+    lexical_declaration: $ => seq(
+      field('kind', choice(seq('let', optional($._let_binding)), 'const')),
+      commaSep1($.variable_declarator),
+      $._semicolon,
+    ),
 
     declaration: ($, previous) => choice(
       previous,
