@@ -35,6 +35,22 @@ module.exports = {
     [$.call_expression, $._type_query_call_expression],
     // `using [a] = x` assigns to `using[a]`.
     [$.primary_expression, $.using_declaration],
+    // `import type from "m"`, or a type-only default import called `from`.
+    [$.import_statement, $._import_identifier],
+    // `<out>x` is a type assertion, `<out>(x) => x` a generic arrow function.
+    [$._keyword_type_identifier, $.type_parameter],
+    // A keyword after `<(` can be a type, a parameter or an expression, as an
+    // identifier can.
+    [$.pattern, $._keyword_type_identifier],
+    [$.primary_expression, $._keyword_type_identifier],
+    [$.arrow_function, $._keyword_type_identifier],
+    [$.primary_expression, $.index_type_query],
+    [$.pattern, $.index_type_query],
+    [$._keyword_type_identifier, $.flow_component_type],
+    [$.primary_expression, $.pattern, $._keyword_type_identifier],
+    [$.rest_pattern, $._keyword_type_identifier],
+    [$._keyword_type_identifier, $.using_declaration],
+    [$.primary_expression, $.rest_pattern, $._keyword_type_identifier],
     // `{ new (x) ... }`: a block with a `new`, or an object with a method.
     [$.new_expression, $._property_name],
     // `x as object.T`
@@ -42,7 +58,6 @@ module.exports = {
     [$.nested_type_identifier, $.type_keyword_nested_identifier],
     [$.primary_expression, $.nested_type_identifier, $.type_keyword_nested_identifier],
     // Flow
-    [$.primary_type, $.flow_component_type],
     [$.conditional_type, $.flow_renders_annotation],
     [$.union_type, $.flow_renders_annotation],
     [$.intersection_type, $.flow_renders_annotation],
@@ -96,37 +111,33 @@ module.exports = {
      * TODO: update the original grammar to include an intermediate `class_element`
      * rule so that we can avoid copying and pasting the original rule here.
      *
-     * Decorators may precede every member, not only method definitions and
-     * fields, so that a decorated method signature or index signature parses;
-     * `public_field_definition` carries none of its own.
+     * A decorator is an element of its own, so that one may precede every
+     * member, and `...` in a pattern; `public_field_definition` carries none
+     * of its own.
      */
     class_body: $ => seq(
       '{',
       repeat(choice(
         $.semgrep_ellipsis,
+        field('decorator', $.decorator),
+        seq($.method_definition, optional($._semicolon)),
+        // As it happens for functions, the semicolon insertion should not
+        // happen if a block follows the closing paren, because then it's a
+        // *definition*, not a declaration. Example:
+        //     public foo()
+        //     { <--- this brace made the method signature become a definition
+        //     }
+        // The same rule applies for functions and that's why we use
+        // "_function_signature_automatic_semicolon".
+        seq($.method_signature, choice($._function_signature_automatic_semicolon, ',')),
         seq(
-          repeat(field('decorator', $.decorator)),
           choice(
-            seq($.method_definition, optional($._semicolon)),
-            // As it happens for functions, the semicolon insertion should not
-            // happen if a block follows the closing paren, because then it's a
-            // *definition*, not a declaration. Example:
-            //     public foo()
-            //     { <--- this brace made the method signature become a definition
-            //     }
-            // The same rule applies for functions and that's why we use
-            // "_function_signature_automatic_semicolon".
-            seq($.method_signature, choice($._function_signature_automatic_semicolon, ',')),
-            seq(
-              choice(
-                $.abstract_method_signature,
-                $.index_signature,
-                $.method_signature,
-                $.public_field_definition,
-              ),
-              choice($._semicolon, ','),
-            ),
+            $.abstract_method_signature,
+            $.index_signature,
+            $.method_signature,
+            $.public_field_definition,
           ),
+          choice($._semicolon, ','),
         ),
         $.class_static_block,
         ';',
@@ -242,6 +253,15 @@ module.exports = {
         'type',
         choice('*', $.namespace_export),
         $._from_clause,
+        optional($.import_attribute),
+        $._semicolon,
+      ),
+      seq(
+        'export',
+        'type',
+        $.export_clause,
+        $._from_clause,
+        $.import_attribute,
         $._semicolon,
       ),
       seq(
@@ -315,6 +335,63 @@ module.exports = {
       'component',
       'hook',
       'unique',
+      'unknown',
+      'never',
+      'keyof',
+      'infer',
+    ),
+
+    // Words that the overlay makes keywords where an identifier is valid too.
+    // After a `<` both a type and an expression can follow, so the lexer
+    // returns the keyword, and it stands for the name.
+    _keyword_type_identifier: _ => choice(
+      'component',
+      'unique',
+      'accessor',
+      'using',
+      'opaque',
+      'hook',
+      'out',
+    ),
+
+    // `import type from from "m"`: after `type` the lexer returns the keyword.
+    // Not in `_import_identifier`, which would make `from` a keyword in
+    // `import { from as f } from "m"` too.
+    import_clause: ($, previous) => choice(
+      previous,
+      seq(
+        alias('from', $.identifier),
+        optional(seq(',', choice($.namespace_import, $.named_imports))),
+      ),
+    ),
+
+    tuple_parameter: $ => seq(
+      field('name', choice(
+        $.identifier,
+        $.rest_pattern,
+        alias($._keyword_type_identifier, $.identifier),
+      )),
+      field('type', $.type_annotation),
+    ),
+
+    optional_tuple_parameter: $ => seq(
+      field('name', choice(
+        $.identifier,
+        alias($._keyword_type_identifier, $.identifier),
+      )),
+      '?',
+      field('type', $.type_annotation),
+    ),
+
+    extends_type_clause: $ => seq(
+      'extends',
+      commaSep1(field('type', choice(
+        $._type_identifier,
+        $.nested_type_identifier,
+        $.generic_type,
+        alias($._keyword_type_identifier, $.type_identifier),
+        alias('object', $.type_identifier),
+      ))),
     ),
 
     // A comparison reads `a < b > -1`; TypeScript takes type arguments there
@@ -692,8 +769,7 @@ module.exports = {
       previous,
       $.flow_component_type,
       $.flow_interface_type,
-      alias('component', $.type_identifier),
-      alias('unique', $.type_identifier),
+      alias($._keyword_type_identifier, $.type_identifier),
       prec(-1, alias($._type_query_member_expression_in_type_annotation, $.member_expression)),
       prec(-1, alias($._type_query_call_expression_in_type_annotation, $.call_expression)),
     ),
@@ -728,7 +804,8 @@ module.exports = {
       field('module', choice(
         $.identifier,
         $.nested_identifier,
-        alias(choice('component', 'unique', 'object'), $.identifier),
+        alias($._keyword_type_identifier, $.identifier),
+        alias('object', $.identifier),
         alias($.type_keyword_nested_identifier, $.nested_identifier),
       )),
       '.',
@@ -739,7 +816,8 @@ module.exports = {
     // `<object>`, `object` would lex as this keyword.
     type_keyword_nested_identifier: $ => prec('member', seq(
       field('object', choice(
-        alias(choice('component', 'unique', 'object'), $.identifier),
+        alias($._keyword_type_identifier, $.identifier),
+        alias('object', $.identifier),
         alias($.type_keyword_nested_identifier, $.member_expression),
       )),
       '.',
@@ -755,7 +833,7 @@ module.exports = {
         field('type_arguments', $.flow_empty_type_arguments),
       )),
       prec('call', seq(
-        field('name', alias(choice('component', 'unique'), $.type_identifier)),
+        field('name', alias($._keyword_type_identifier, $.type_identifier)),
         field('type_arguments', $.type_arguments),
       )),
       prec('call', seq(
