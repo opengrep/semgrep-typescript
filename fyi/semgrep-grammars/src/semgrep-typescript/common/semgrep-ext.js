@@ -8,6 +8,8 @@
  */
 const commaSep1 = (rule) => seq(rule, repeat(seq(',', rule)));
 const sepBy1 = (sep, rule) => seq(rule, repeat(seq(sep, rule)));
+const flatChoice = (rule) =>
+  rule.type === 'CHOICE' ? rule.members.flatMap(flatChoice) : [rule];
 
 module.exports = {
   // `import(...)` after `typeof` reads both as a call and as a type query.
@@ -29,6 +31,12 @@ module.exports = {
     [$.call_expression, $._type_query_call_expression],
     // `using [a] = x` assigns to `using[a]`.
     [$.primary_expression, $.using_declaration],
+    // `{ new (x) ... }`: a block with a `new`, or an object with a method.
+    [$.new_expression, $._property_name],
+    // `x as object.T`
+    [$.nested_type_identifier, $.predefined_type, $.type_keyword_nested_identifier],
+    [$.nested_type_identifier, $.type_keyword_nested_identifier],
+    [$.primary_expression, $.nested_type_identifier, $.type_keyword_nested_identifier],
     // Flow
     [$.primary_type, $.flow_component_type],
     [$.conditional_type, $.flow_renders_annotation],
@@ -289,18 +297,25 @@ module.exports = {
       ),
     ),
 
-    // `using`, Flow's `opaque`, `component` and `hook`, and the class member
-    // modifiers `accessor` and `abstract` remain identifiers elsewhere, as in
-    // `accessor: number` and `abstract;`.
+    // `using`, Flow's `opaque`, `component` and `hook`, the class member
+    // modifiers `accessor` and `abstract`, and `unique` remain identifiers
+    // elsewhere, as in `accessor: number` and `abstract;`. Upstream's `let` and
+    // `new` are left out: the scanner inserts a semicolon after an identifier
+    // at the end of a line, which breaks `let\n  x = 1` and `new\n  Foo()`.
     _reserved_identifier: (_, previous) => choice(
-      previous,
+      ...flatChoice(previous).filter((rule) => !['let', 'new'].includes(rule.value)),
       'accessor',
       'abstract',
       'using',
       'opaque',
       'component',
       'hook',
+      'unique',
     ),
+
+    // A comparison reads `a < b > -1`; TypeScript takes type arguments there
+    // only when no expression can follow.
+    instantiation_expression: ($, previous) => prec.dynamic(-1, previous),
 
     declaration: ($, previous) => choice(
       previous,
@@ -401,6 +416,8 @@ module.exports = {
                 'default',
                 choice($.declaration, seq($.type, $._semicolon)),
               ),
+              $.flow_component_signature,
+              $.flow_hook_signature,
             ),
           ),
           $.flow_component_signature,
@@ -617,6 +634,7 @@ module.exports = {
     _property_name: ($, previous) => choice(
       previous,
       $.flow_symbol_name,
+      alias('new', $.property_identifier),
     ),
 
     flow_symbol_name: _ => /@@[a-zA-Z_$][a-zA-Z0-9_$]*/,
@@ -665,6 +683,7 @@ module.exports = {
       $.flow_component_type,
       $.flow_interface_type,
       alias('component', $.type_identifier),
+      alias('unique', $.type_identifier),
       prec(-1, alias($._type_query_member_expression_in_type_annotation, $.member_expression)),
       prec(-1, alias($._type_query_call_expression_in_type_annotation, $.call_expression)),
     ),
@@ -694,6 +713,29 @@ module.exports = {
       field('body', $.object_type),
     ),
 
+    // `component.T` and `component.a.T`; likewise `unique` and `object`.
+    nested_type_identifier: $ => prec('member', seq(
+      field('module', choice(
+        $.identifier,
+        $.nested_identifier,
+        alias(choice('component', 'unique', 'object'), $.identifier),
+        alias($.type_keyword_nested_identifier, $.nested_identifier),
+      )),
+      '.',
+      field('name', $._type_identifier),
+    )),
+
+    // Apart from `nested_identifier`, which also reads JSX element names: in
+    // `<object>`, `object` would lex as this keyword.
+    type_keyword_nested_identifier: $ => prec('member', seq(
+      field('object', choice(
+        alias(choice('component', 'unique', 'object'), $.identifier),
+        alias($.type_keyword_nested_identifier, $.member_expression),
+      )),
+      '.',
+      field('property', alias($.identifier, $.property_identifier)),
+    )),
+
     // `Map<>`: empty type arguments, inferred by Flow. `import("m").T<U>`
     // and `import("m")<U>`: an import type takes type arguments.
     generic_type: ($, previous) => choice(
@@ -701,6 +743,10 @@ module.exports = {
       prec('call', seq(
         field('name', choice($._type_identifier, $.nested_type_identifier)),
         field('type_arguments', $.flow_empty_type_arguments),
+      )),
+      prec('call', seq(
+        field('name', alias(choice('component', 'unique'), $.type_identifier)),
+        field('type_arguments', $.type_arguments),
       )),
       prec('call', seq(
         field('name', choice(
