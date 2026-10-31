@@ -51,6 +51,8 @@ module.exports = {
     [$.rest_pattern, $._keyword_type_identifier],
     [$._keyword_type_identifier, $.using_declaration],
     [$.primary_expression, $.rest_pattern, $._keyword_type_identifier],
+    [$._keyword_type_identifier, $.flow_interface_type],
+    [$.primary_expression, $.flow_interface_type],
     // `{ new (x) ... }`: a block with a `new`, or an object with a method.
     [$.new_expression, $._property_name],
     // `x as object.T`
@@ -339,9 +341,11 @@ module.exports = {
       'never',
       'keyof',
       'infer',
+      'out',
+      'interface',
     ),
 
-    // Words that the overlay makes keywords where an identifier is valid too.
+    // Words that the grammar makes keywords where an identifier is valid too.
     // After a `<` both a type and an expression can follow, so the lexer
     // returns the keyword, and it stands for the name.
     _keyword_type_identifier: _ => choice(
@@ -352,6 +356,7 @@ module.exports = {
       'opaque',
       'hook',
       'out',
+      'interface',
     ),
 
     // `import type from from "m"`: after `type` the lexer returns the keyword.
@@ -402,6 +407,17 @@ module.exports = {
       field('kind', choice(seq('let', optional($._let_binding)), 'const')),
       commaSep1($.variable_declarator),
       $._semicolon,
+    ),
+
+    // `let as = 1`: `let` can be an expression, so the lexer returns the
+    // operator after it, and the operator stands for the name.
+    variable_declarator: ($, previous) => choice(
+      previous,
+      seq(
+        field('name', alias(choice('as', 'satisfies'), $.identifier)),
+        field('type', optional($.type_annotation)),
+        optional($._initializer),
+      ),
     ),
 
     declaration: ($, previous) => choice(
@@ -472,6 +488,7 @@ module.exports = {
           field('left', choice(
             $.identifier,
             $._destructuring_pattern,
+            alias('of', $.identifier),
           )),
           optional($._automatic_semicolon),
         ),

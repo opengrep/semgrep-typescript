@@ -141,6 +141,12 @@ let map_reserved_identifier (env : env) (x : CST.reserved_identifier) =
   | `Infer tok -> R.Case ("Infer",
       (* "infer" *) token env tok
     )
+  | `Out tok -> R.Case ("Out",
+      (* "out" *) token env tok
+    )
+  | `Inte tok -> R.Case ("Inte",
+      (* "interface" *) token env tok
+    )
   )
 
 let map_accessibility_modifier (env : env) (x : CST.accessibility_modifier) =
@@ -253,6 +259,9 @@ let map_keyword_type_identifier (env : env) (x : CST.keyword_type_identifier) =
     )
   | `Out tok -> R.Case ("Out",
       (* "out" *) token env tok
+    )
+  | `Inte tok -> R.Case ("Inte",
+      (* "interface" *) token env tok
     )
   )
 
@@ -2870,7 +2879,19 @@ and map_for_header (env : env) ((v1, v2, v3, v4, v5) : CST.for_header) =
             )
           )
         in
-        let v2 = map_anon_choice_type_id_940079a env v2 in
+        let v2 =
+          (match v2 with
+          | `Id tok -> R.Case ("Id",
+              (* identifier *) token env tok
+            )
+          | `Dest_pat x -> R.Case ("Dest_pat",
+              map_destructuring_pattern env x
+            )
+          | `Of tok -> R.Case ("Of",
+              (* "of" *) token env tok
+            )
+          )
+        in
         let v3 =
           (match v3 with
           | Some tok -> R.Option (Some (
@@ -4933,8 +4954,45 @@ and map_variable_declaration (env : env) ((v1, v2, v3, v4) : CST.variable_declar
 
 and map_variable_declarator (env : env) (x : CST.variable_declarator) =
   (match x with
-  | `Choice_id_opt_type_anno_opt_init (v1, v2, v3) -> R.Case ("Choice_id_opt_type_anno_opt_init",
-      let v1 = map_anon_choice_type_id_940079a env v1 in
+  | `Choice_choice_id_opt_type_anno_opt_init x -> R.Case ("Choice_choice_id_opt_type_anno_opt_init",
+      (match x with
+      | `Choice_id_opt_type_anno_opt_init (v1, v2, v3) -> R.Case ("Choice_id_opt_type_anno_opt_init",
+          let v1 = map_anon_choice_type_id_940079a env v1 in
+          let v2 =
+            (match v2 with
+            | Some x -> R.Option (Some (
+                map_type_annotation env x
+              ))
+            | None -> R.Option None)
+          in
+          let v3 =
+            (match v3 with
+            | Some x -> R.Option (Some (
+                map_initializer_ env x
+              ))
+            | None -> R.Option None)
+          in
+          R.Tuple [v1; v2; v3]
+        )
+      | `Id_BANG_type_anno (v1, v2, v3) -> R.Case ("Id_BANG_type_anno",
+          let v1 = (* identifier *) token env v1 in
+          let v2 = (* "!" *) token env v2 in
+          let v3 = map_type_annotation env v3 in
+          R.Tuple [v1; v2; v3]
+        )
+      )
+    )
+  | `Choice_as_opt_type_anno_opt_init (v1, v2, v3) -> R.Case ("Choice_as_opt_type_anno_opt_init",
+      let v1 =
+        (match v1 with
+        | `As tok -> R.Case ("As",
+            (* "as" *) token env tok
+          )
+        | `Satiss tok -> R.Case ("Satiss",
+            (* "satisfies" *) token env tok
+          )
+        )
+      in
       let v2 =
         (match v2 with
         | Some x -> R.Option (Some (
@@ -4949,12 +5007,6 @@ and map_variable_declarator (env : env) (x : CST.variable_declarator) =
           ))
         | None -> R.Option None)
       in
-      R.Tuple [v1; v2; v3]
-    )
-  | `Id_BANG_type_anno (v1, v2, v3) -> R.Case ("Id_BANG_type_anno",
-      let v1 = (* identifier *) token env v1 in
-      let v2 = (* "!" *) token env v2 in
-      let v3 = map_type_annotation env v3 in
       R.Tuple [v1; v2; v3]
     )
   )
