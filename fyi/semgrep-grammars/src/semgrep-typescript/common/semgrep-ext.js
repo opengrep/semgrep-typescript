@@ -37,6 +37,8 @@ module.exports = {
     [$.primary_expression, $.using_declaration],
     // `import type from "m"`, or a type-only default import called `from`.
     [$.import_statement, $._import_identifier],
+    // `interface as {}` is a declaration, or `interface` cast to a type.
+    [$.primary_expression, $.interface_declaration],
     // `<out>x` is a type assertion, `<out>(x) => x` a generic arrow function.
     [$._keyword_type_identifier, $.type_parameter],
     // A keyword after `<(` can be a type, a parameter or an expression, as an
@@ -414,10 +416,43 @@ module.exports = {
     variable_declarator: ($, previous) => choice(
       previous,
       seq(
-        field('name', alias(choice('as', 'satisfies'), $.identifier)),
+        field('name', alias(choice('as', 'satisfies', 'of'), $.identifier)),
         field('type', optional($.type_annotation)),
         optional($._initializer),
       ),
+    ),
+
+    // `interface as {}`: `interface` can be an expression, so the lexer returns
+    // the operator after it.
+    interface_declaration: $ => seq(
+      'interface',
+      field('name', choice(
+        $._type_identifier,
+        prec.dynamic(1, alias(choice('as', 'satisfies'), $.type_identifier)),
+      )),
+      field('type_parameters', optional($.type_parameters)),
+      optional($.extends_type_clause),
+      field('body', alias($.object_type, $.interface_body)),
+    ),
+
+    // `[hook in T]`: the keyword stands for the name.
+    mapped_type_clause: $ => seq(
+      field('name', choice(
+        $._type_identifier,
+        alias($._reserved_identifier, $.type_identifier),
+      )),
+      'in',
+      field('type', $.type),
+      optional(seq('as', field('alias', $.type))),
+    ),
+
+    // `import from = a.b`
+    import_alias: $ => seq(
+      'import',
+      choice($.identifier, alias('from', $.identifier)),
+      '=',
+      choice($.identifier, $.nested_identifier),
+      $._semicolon,
     ),
 
     declaration: ($, previous) => choice(
@@ -480,6 +515,7 @@ module.exports = {
           field('left', choice(
             $.identifier,
             $._destructuring_pattern,
+            alias(choice('as', 'satisfies', 'of'), $.identifier),
           )),
           optional($._initializer),
         ),
@@ -488,7 +524,7 @@ module.exports = {
           field('left', choice(
             $.identifier,
             $._destructuring_pattern,
-            alias('of', $.identifier),
+            alias(choice('as', 'satisfies', 'of'), $.identifier),
           )),
           optional($._automatic_semicolon),
         ),
@@ -798,10 +834,20 @@ module.exports = {
         $.identifier,
         $.this,
         alias($.predefined_type, $.identifier),
-        alias('component', $.identifier),
+        alias($._keyword_type_identifier, $.identifier),
       )),
       'is',
       field('type', $.type),
+    ),
+
+    asserts: $ => seq(
+      'asserts',
+      choice(
+        $.type_predicate,
+        $.identifier,
+        $.this,
+        alias($._keyword_type_identifier, $.identifier),
+      ),
     ),
 
     flow_component_type: $ => seq(
