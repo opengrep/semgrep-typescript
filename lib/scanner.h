@@ -260,8 +260,7 @@ static bool scan_ternary_qmark(TSLexer *lexer) {
     if (lexer->lookahead == '?') {
         advance(lexer);
 
-        /* Optional chaining. */
-        if (lexer->lookahead == '?' || lexer->lookahead == '.') {
+        if (lexer->lookahead == '?') {
             return false;
         }
 
@@ -281,6 +280,7 @@ static bool scan_ternary_qmark(TSLexer *lexer) {
             return false;
         }
 
+        /* Optional chaining, unless a decimal digit follows the `.`. */
         if (lexer->lookahead == '.') {
             advance(lexer);
             if (iswdigit(lexer->lookahead)) {
